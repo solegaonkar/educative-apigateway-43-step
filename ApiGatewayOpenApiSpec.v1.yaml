@@ -1,0 +1,109 @@
+openapi: "3.0.1"
+info:
+  title: "ServerlessMicroservices"
+  version: "v0"
+paths:
+  /microservicepath:
+    put:
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        credentials: "arn:aws:iam::${AWS::AccountId}:role/ApiGatewayInvokeStepFunctionMicroserviceName"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:${AWS::Region}:states:action/StartExecution"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json:
+            "{\n    \"input\": \"{\\\"body\\\": $util.escapeJavaScript($input.body),\\\
+            \"apiKey\\\": \\\"$context.identity.apiKey\\\",\\\"stage\\\" : \\\"$context.stage\\\
+            \",\\\"http-method\\\" : \\\"$context.httpMethod\\\",\\\"requestId\\\"\
+            \ : \\\"$context.requestId\\\",\\\"sourceIp\\\" : \\\"$context.identity.sourceIp\\\
+            \"}\",\n    \"name\": \"TemplateStateMachine\",\n    \"stateMachineArn\"\
+            : \"arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:MicroserviceName\"\
+            \n\n}\n"
+        passthroughBehavior: "when_no_templates"
+        type: "aws"
+    post:
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        credentials: "arn:aws:iam::${AWS::AccountId}:role/ApiGatewayInvokeStepFunctionMicroserviceName"
+        httpMethod: "POST"
+        uri: "arn:aws:apigateway:ap-south-1:states:action/StartSyncExecution"
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json:
+                "#set($output = $util.parseJson($input.json('output')))\n\
+                $output"
+        requestTemplates:
+          application/json:
+            "{\n    \"input\": \"{\\\"body\\\": $util.escapeJavaScript($input.body),\\\
+            \"apiKey\\\": \\\"$context.identity.apiKey\\\",\\\"stage\\\" : \\\"$context.stage\\\
+            \",\\\"http-method\\\" : \\\"$context.httpMethod\\\",\\\"requestId\\\"\
+            \ : \\\"$context.requestId\\\",\\\"sourceIp\\\" : \\\"$context.identity.sourceIp\\\
+            \"}\",\n    \"name\": \"TemplateStateMachine\",\n    \"stateMachineArn\"\
+            : \"arn:aws:states:ap-south-1:${AWS::AccountId}:stateMachine:MicroserviceName\"\
+            \n}\n"
+        passthroughBehavior: "when_no_templates"
+        type: "aws"
+    options:
+      responses:
+        "200":
+          description: "200 response"
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: "string"
+            Access-Control-Allow-Methods:
+              schema:
+                type: "string"
+            Access-Control-Allow-Headers:
+              schema:
+                type: "string"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST,PUT'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        passthroughBehavior: "when_no_match"
+        type: "mock"
+components:
+  schemas:
+    Empty:
+      title: "Empty Schema"
+      type: "object"

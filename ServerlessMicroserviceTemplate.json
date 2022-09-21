@@ -1,0 +1,235 @@
+{
+  "Comment": "Record the MicroService Start to Kinesis",
+  "StartAt": "Parallel",
+  "States": {
+    "Parallel": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "SaveRequest",
+          "States": {
+            "SaveRequest": {
+              "Type": "Task",
+              "Parameters": {
+                "DeliveryStreamName": "MicroserviceTransactions",
+                "Record": {
+                  "Data": "BLOB"
+                }
+              },
+              "Resource": "arn:aws:states:::aws-sdk:firehose:putRecord",
+              "ResultPath": null,
+              "Next": "InvocationCount"
+            },
+            "InvocationCount": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::dynamodb:updateItem",
+              "Parameters": {
+                "TableName": "MicroserviceAnalytics",
+                "Key": {
+                  "microservice": {
+                    "S": "${LAMBDA_MICROSERVICE_NAME}"
+                  },
+                  "executionday": {
+                    "S": "today"
+                  }
+                },
+                "UpdateExpression": "SET invocationCount = invocationCount + :one",
+                "ExpressionAttributeValues": {
+                  ":one": {
+                    "N": "1"
+                  }
+                }
+              },
+              "End": true,
+              "ResultPath": null
+            }
+          }
+        },
+        {
+          "StartAt": "AuthenticationAuthorisation",
+          "States": {
+            "AuthenticationAuthorisation": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:${AUTHENTICATION_MANAGER}:deployed"
+              },
+              "Next": "Authorized"
+            },
+            "Authorized": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.authorized",
+                  "BooleanEquals": true,
+                  "Next": "AuthorizedCount"
+                }
+              ],
+              "Default": "UnauthorizedCount"
+            },
+            "UnauthorizedCount": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::dynamodb:updateItem",
+              "Parameters": {
+                "TableName": "MicroserviceAnalytics",
+                "Key": {
+                  "microservice": {
+                    "S": "${LAMBDA_MICROSERVICE_NAME}"
+                  },
+                  "executionday": {
+                    "S": "today"
+                  }
+                },
+                "UpdateExpression": "SET unauthorizedCount = unauthorizedCount + :one",
+                "ExpressionAttributeValues": {
+                  ":one": {
+                    "N": "1"
+                  }
+                }
+              },
+              "End": true
+            },
+            "AuthorizedCount": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::dynamodb:updateItem",
+              "Parameters": {
+                "TableName": "MicroserviceAnalytics",
+                "Key": {
+                  "microservice": {
+                    "S": "${LAMBDA_MICROSERVICE_NAME}"
+                  },
+                  "executionday": {
+                    "S": "today"
+                  }
+                },
+                "UpdateExpression": "SET authorizedCount = authorizedCount + :one",
+                "ExpressionAttributeValues": {
+                  ":one": {
+                    "N": "1"
+                  }
+                }
+              },
+              "ResultPath": null,
+              "Next": "BusinessProcess"
+            },
+            "BusinessProcess": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:${LAMBDA_MICROSERVICE_NAME}:deployed"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 6,
+                  "BackoffRate": 2
+                }
+              ],
+              "InputPath": "$.event",
+              "Next": "CacheResponse"
+            },
+            "CacheResponse": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::dynamodb:putItem",
+              "Parameters": {
+                "TableName": "MicroserviceResponse",
+                "Item": {
+                  "microservice": {
+                    "S": "${LAMBDA_MICROSERVICE_NAME}"
+                  },
+                  "requestId": {
+                    "S.$": "$.requestId"
+                  },
+                  "response": {
+                    "S.$": "States.JsonToString($.response)"
+                  },
+                  "ttl": {
+                    "N.$": "$.ttl"
+                  }
+                }
+              },
+              "Next": "SaveResponse",
+              "ResultPath": null
+            },
+            "SaveResponse": {
+              "Type": "Task",
+              "Parameters": {
+                "DeliveryStreamName": "MicroserviceTransactions",
+                "Record": {
+                  "Data": "BLOB"
+                }
+              },
+              "Resource": "arn:aws:states:::aws-sdk:firehose:putRecord",
+              "ResultPath": null,
+              "Next": "Success"
+            },
+            "Success": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.success",
+                  "IsPresent": true,
+                  "Next": "CompletedCount"
+                }
+              ],
+              "Default": "ErrorCount"
+            },
+            "CompletedCount": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::dynamodb:updateItem",
+              "Parameters": {
+                "TableName": "MicroserviceAnalytics",
+                "Key": {
+                  "microservice": {
+                    "S": "${LAMBDA_MICROSERVICE_NAME}"
+                  },
+                  "executionday": {
+                    "S": "today"
+                  }
+                },
+                "UpdateExpression": "SET completedCount = completedCount + :one",
+                "ExpressionAttributeValues": {
+                  ":one": {
+                    "N": "1"
+                  }
+                }
+              },
+              "End": true,
+              "ResultPath": null
+            },
+            "ErrorCount": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::dynamodb:updateItem",
+              "Parameters": {
+                "TableName": "MicroserviceAnalytics",
+                "Key": {
+                  "microservice": {
+                    "S": "${LAMBDA_MICROSERVICE_NAME}"
+                  },
+                  "executionday": {
+                    "S": "today"
+                  }
+                },
+                "UpdateExpression": "SET errorCount = errorCount + :one",
+                "ExpressionAttributeValues": {
+                  ":one": {
+                    "N": "1"
+                  }
+                }
+              },
+              "End": true,
+              "ResultPath": null
+            }
+          }
+        }
+      ],
+      "End": true,
+      "OutputPath": "$[1]"
+    }
+  }
+}

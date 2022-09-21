@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  DeployId:
+    Type: String
+    Default: v1
+  SourceCodeBucket:
+    Type: String
+    Default: afsf34sfdg
+  ArchiveS3BucketName:
+    Type: String
+    Default: educative.dsklahfudsahf.archive
+  ArchiveGlacierDays:
+    Type: Number
+    Default: 7
+  ArchiveDeleteDays:
+    Type: Number
+    Default: 30
+  ApiGatewayVersion:
+    Type: String
+    Default: v1
+Resources:
+  ArchiveS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Ref: ArchiveS3BucketName
+      AccessControl: Private
+      LifecycleConfiguration:
+        Rules:
+          - Id: GlacierRule
+            Prefix: glacier
+            Status: Enabled
+            ExpirationInDays:
+              Ref: ArchiveDeleteDays
+            Transitions:
+              - TransitionInDays:
+                  Ref: ArchiveGlacierDays
+                StorageClass: GLACIER
+      Tags:
+        - Key: Service
+          Value: Platform
+        - Key: Component
+          Value: Archive
+        - Key: Module
+          Value: Backbone
+  MicroserviceResponseTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: microservice
+          AttributeType: S
+        - AttributeName: requestId
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      ContributorInsightsSpecification:
+        Enabled: true
+      KeySchema:
+        - AttributeName: microservice
+          KeyType: HASH
+        - AttributeName: requestId
+          KeyType: RANGE
+      TableClass: STANDARD
+      TableName: MicroserviceResponse
+      Tags:
+        - Key: Service
+          Value: Platform
+        - Key: Module
+          Value: Backbone
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+  MicroserviceAnalytics:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: microservice
+          AttributeType: S
+        - AttributeName: executionday
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      ContributorInsightsSpecification:
+        Enabled: true
+      KeySchema:
+        - AttributeName: microservice
+          KeyType: HASH
+        - AttributeName: executionday
+          KeyType: RANGE
+      TableClass: STANDARD
+      TableName: MicroserviceAnalytics
+      Tags:
+        - Key: Service
+          Value: Platform
+        - Key: Component
+          Value: Analytics
+        - Key: Module
+          Value: Backbone
+  MicroserviceTransactionsFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: MicroserviceTransactions
+      DeliveryStreamType: DirectPut
+      S3DestinationConfiguration:
+        BucketARN: !Sub "arn:aws:s3:::${ArchiveS3BucketName}"
+        RoleARN: !GetAtt KinesisFirehoseServiceRole.Arn
+      Tags:
+        - Key: Service
+          Value: Platform
+        - Key: Component
+          Value: Archive
+        - Key: Module
+          Value: Backbone
+  KinesisFirehoseServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - firehose.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - s3:AbortMultipartUpload
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:PutObject
+                Resource:
+                  - !Sub "arn:aws:s3:::${ArchiveS3BucketName}"
+  ServerlessMicroservices:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      BodyS3Location:
+        Bucket:
+          Ref: SourceCodeBucket
+        Key: !Sub "ApiGatewayOpenApiSpec.${ApiGatewayVersion}.yaml"
+      Description: Entry point for all the Serverless Microservices of the system
+      Name: ServerlessMicroservices
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      Description: String
+      RestApiId: !Ref ServerlessMicroservices
+      StageName: deployed
