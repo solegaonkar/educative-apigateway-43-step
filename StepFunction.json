@@ -1,0 +1,38 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "UpdateItem",
+  "States": {
+    "UpdateItem": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "EducativeAPIAnalytics",
+        "Key": {
+          "apiName": {
+            "S": "EchoAPI"
+          }
+        },
+        "UpdateExpression": "SET invocationCount = invocationCount + :val",
+        "ExpressionAttributeValues": {
+          ":val": {
+            "N": "1"
+          }
+        }
+      },
+      "Next": "Lambda Invoke",
+      "ResultPath": null
+    },
+    "Lambda Invoke": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "arn:aws:lambda:${AWS_REGION_ID}:${AWS_ACCOUNT_ID}:function:EducativeEcho:$LATEST"
+      },
+      "End": true,
+      "ResultSelector": {
+        "body.$": "$.Payload.body"
+      }
+    }
+  }
+}

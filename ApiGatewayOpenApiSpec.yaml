@@ -1,9 +1,9 @@
 openapi: "3.0.1"
 info:
-  title: "ServerlessMicroservices"
+  title: "EducativeRESTApi"
   version: "v0"
 paths:
-  /microservicepath:
+  /:
     put:
       responses:
         "200":
@@ -17,7 +17,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Empty"
       x-amazon-apigateway-integration:
-        credentials: "arn:aws:iam::${AWS::AccountId}:role/ApiGatewayInvokeStepFunctionMicroserviceName"
+        credentials: "arn:aws:iam::${AWS::AccountId}:role/EducativeRole"
         httpMethod: "POST"
         uri: "arn:aws:apigateway:${AWS::Region}:states:action/StartExecution"
         responses:
@@ -26,14 +26,12 @@ paths:
             responseParameters:
               method.response.header.Access-Control-Allow-Origin: "'*'"
         requestTemplates:
-          application/json:
-            "{\n    \"input\": \"{\\\"body\\\": $util.escapeJavaScript($input.body),\\\
+          application/json: "{\"input\": \"{\\\"body\\\": $util.escapeJavaScript($input.body),\\\
             \"apiKey\\\": \\\"$context.identity.apiKey\\\",\\\"stage\\\" : \\\"$context.stage\\\
             \",\\\"http-method\\\" : \\\"$context.httpMethod\\\",\\\"requestId\\\"\
             \ : \\\"$context.requestId\\\",\\\"sourceIp\\\" : \\\"$context.identity.sourceIp\\\
-            \"}\",\n    \"name\": \"TemplateStateMachine\",\n    \"stateMachineArn\"\
-            : \"arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:MicroserviceName\"\
-            \n\n}\n"
+            \"}\",\"name\": \"TemplateStateMachine\", \"stateMachineArn\"\
+            : \"arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:EducativeExpressFlow\"}"
         passthroughBehavior: "when_no_templates"
         type: "aws"
     post:
@@ -49,27 +47,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/Empty"
       x-amazon-apigateway-integration:
-        credentials: "arn:aws:iam::${AWS::AccountId}:role/ApiGatewayInvokeStepFunctionMicroserviceName"
+        credentials: "arn:aws:iam::${AWS::AccountId}:role/EducativeRole"
         httpMethod: "POST"
-        uri: "arn:aws:apigateway:ap-south-1:states:action/StartSyncExecution"
+        uri: "arn:aws:apigateway:${AWS::Region}:states:action/StartSyncExecution"
         responses:
           default:
             statusCode: "200"
             responseParameters:
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
-              application/json:
-                "#set($output = $util.parseJson($input.json('output')))\n\
-                $output"
+              application/json: "$input.path('$.output')"
         requestTemplates:
-          application/json:
-            "{\n    \"input\": \"{\\\"body\\\": $util.escapeJavaScript($input.body),\\\
+          application/json: "{ \"input\": \"{\\\"body\\\": $util.escapeJavaScript($input.body),\\\
             \"apiKey\\\": \\\"$context.identity.apiKey\\\",\\\"stage\\\" : \\\"$context.stage\\\
             \",\\\"http-method\\\" : \\\"$context.httpMethod\\\",\\\"requestId\\\"\
             \ : \\\"$context.requestId\\\",\\\"sourceIp\\\" : \\\"$context.identity.sourceIp\\\
-            \"}\",\n    \"name\": \"TemplateStateMachine\",\n    \"stateMachineArn\"\
-            : \"arn:aws:states:ap-south-1:${AWS::AccountId}:stateMachine:MicroserviceName\"\
-            \n}\n"
+            \"}\", \"name\": \"TemplateStateMachine\", \"stateMachineArn\"\
+            : \"arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:EducativeExpressFlow\"}"
         passthroughBehavior: "when_no_templates"
         type: "aws"
     options:
